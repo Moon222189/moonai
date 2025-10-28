@@ -3,84 +3,100 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MoonAI - Smart AI</title>
+<title>MoonAI</title>
 <style>
-body { font-family: system-ui, sans-serif; background: #f0f4f8; margin: 20px; }
+body { font-family: system-ui, sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
 .container { max-width: 900px; margin: auto; display: flex; flex-direction: column; gap: 12px; }
-h2 { text-align: center; color: #111; }
+h2 { text-align: center; color: #111; margin-bottom: 0; }
 #chat { border:1px solid #ddd; padding:15px; height:600px; overflow-y:auto; background:#fff; border-radius:12px; display:flex; flex-direction:column; gap:8px; }
-.bubble { max-width:80%; padding:10px 14px; border-radius:14px; cursor:pointer; white-space: pre-wrap; }
+.bubble { max-width:80%; padding:10px 14px; border-radius:14px; cursor:pointer; white-space: pre-wrap; word-break: break-word; }
 .user { align-self:flex-end; background:#007bff; color:#fff; }
 .bot { align-self:flex-start; background:#e5e5ea; color:#111; }
 .typing { font-style: italic; color: #666; }
 .blink { animation: blink 1s steps(2, start) infinite; }
 @keyframes blink { to { visibility: hidden; } }
+.input-row { display:flex; gap:8px; margin-top:12px; }
+input { flex:1; padding:12px; border-radius:8px; border:1px solid #ccc; font-size:1rem; }
+button { padding:12px 20px; border:none; border-radius:8px; background:#007bff; color:white; font-size:1rem; cursor:pointer; }
+button:disabled { background:#aaa; cursor:not-allowed; }
 </style>
 </head>
 <body>
 <div class="container">
-<h2>MoonAI - Smart AI</h2>
+<h2>MoonAI</h2>
 <div id="chat"></div>
-<div style="display:flex; gap:8px;">
-<input id="message" placeholder="Ask me anything..." autocomplete="off" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
-<button onclick="sendMessage()" style="padding:10px 20px; border:none; border-radius:8px; background:#007bff; color:white;">Send</button>
+<div class="input-row">
+  <input id="message" placeholder="Ask me anything..." autocomplete="off">
+  <button id="send-btn" onclick="sendMessage()">Send</button>
 </div>
 </div>
 
 <script>
-const chat=document.getElementById('chat');
+const chat = document.getElementById('chat');
+const input = document.getElementById('message');
+const sendBtn = document.getElementById('send-btn');
 
-function addMessage(text, cls, thinking=null){
-  const bubble=document.createElement('div');
-  bubble.className='bubble '+cls;
-  bubble.innerHTML=text;
-  if(thinking){ bubble.title="Click to see AI thinking"; bubble.onclick=()=>alert(thinking); }
+// Add message bubble
+function addMessage(text, cls, thinking=null) {
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ' + cls;
+  bubble.innerHTML = text;
+  if(thinking) bubble.onclick = ()=>alert(thinking);
   chat.appendChild(bubble);
-  chat.scrollTop=chat.scrollHeight;
+  chat.scrollTop = chat.scrollHeight;
 }
 
-async function typeText(bubble,text,delay=15){
-  bubble.innerHTML='';
+// Typewriter effect
+async function typeText(bubble, text, delay=15) {
+  bubble.innerHTML = '';
   for(let i=0;i<text.length;i++){
-    bubble.innerHTML+=text[i];
-    await new Promise(r=>setTimeout(r,delay));
-    chat.scrollTop=chat.scrollHeight;
+    bubble.innerHTML += text[i];
+    await new Promise(r=>setTimeout(r, delay));
+    chat.scrollTop = chat.scrollHeight;
   }
 }
 
-async function sendMessage(){
-  const input=document.getElementById('message');
-  const msg=input.value.trim();
+// Send message to backend
+async function sendMessage() {
+  const msg = input.value.trim();
   if(!msg) return;
-  addMessage(msg,'user');
-  input.value='';
+  addMessage(msg, 'user');
+  input.value = '';
+  sendBtn.disabled = true;
 
-  const thinkingBubble=document.createElement('div');
-  thinkingBubble.className='bubble bot typing';
-  thinkingBubble.textContent='Thinking...';
-  chat.appendChild(thinkingBubble);
+  const typingBubble = document.createElement('div');
+  typingBubble.className = 'bubble bot typing';
+  typingBubble.innerHTML = 'Thinking<span class="blink">|</span>';
+  chat.appendChild(typingBubble);
 
   try{
-    const res=await fetch("/api/moonai",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message:msg})
+    const res = await fetch('/api/moonai', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({message: msg})
     });
-    const data=await res.json();
-    thinkingBubble.remove();
-    const botBubble=document.createElement('div');
-    botBubble.className='bubble bot';
+    const data = await res.json();
+    typingBubble.remove();
+
+    const botBubble = document.createElement('div');
+    botBubble.className = 'bubble bot';
     chat.appendChild(botBubble);
-    await typeText(botBubble,data.answer,15);
-    botBubble.onclick=()=>alert(data.log.join("\n"));
-  }catch(e){
-    thinkingBubble.remove();
-    addMessage("Error contacting MoonAI: "+e,'bot');
+    await typeText(botBubble, data.answer, 15);
+    botBubble.title = "Click to see AI thinking log";
+    botBubble.onclick = ()=>alert(data.log.join("\n"));
+
+  } catch(e) {
+    typingBubble.remove();
+    addMessage("Error contacting MoonAI: " + e, 'bot');
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
   }
 }
 
-document.getElementById('message').addEventListener('keypress', e=>{
-  if(e.key==='Enter') sendMessage();
+// Enter key to send
+input.addEventListener('keypress', e=>{
+  if(e.key === 'Enter') sendMessage();
 });
 </script>
 </body>
