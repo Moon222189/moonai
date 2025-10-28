@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MoonAI - Online Smart AI</title>
+<title>MoonAI</title>
 <style>
 body { font-family: system-ui, sans-serif; background: #f0f4f8; margin: 20px; }
 .container { max-width: 900px; margin: auto; display: flex; flex-direction: column; gap: 12px; }
@@ -19,18 +19,17 @@ h2 { text-align: center; color: #111; }
 </head>
 <body>
 <div class="container">
-  <h2>MoonAI - Online Smart AI</h2>
-  <div id="chat"></div>
-  <div style="display:flex; gap:8px;">
-    <input id="message" placeholder="Ask me anything..." autocomplete="off" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
-    <button onclick="sendMessage()" style="padding:10px 20px; border:none; border-radius:8px; background:#007bff; color:white;">Send</button>
-  </div>
+<h2>MoonAI - Smart AI</h2>
+<div id="chat"></div>
+<div style="display:flex; gap:8px;">
+<input id="message" placeholder="Ask me anything..." autocomplete="off" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
+<button onclick="sendMessage()" style="padding:10px 20px; border:none; border-radius:8px; background:#007bff; color:white;">Send</button>
+</div>
 </div>
 
 <script>
 const chat=document.getElementById('chat');
 
-// Add message to chat
 function addMessage(text, cls, thinking=null){
   const bubble=document.createElement('div');
   bubble.className='bubble '+cls;
@@ -40,7 +39,6 @@ function addMessage(text, cls, thinking=null){
   chat.scrollTop=chat.scrollHeight;
 }
 
-// Typing effect
 async function typeText(bubble,text,delay=15){
   bubble.innerHTML='';
   for(let i=0;i<text.length;i++){
@@ -50,50 +48,6 @@ async function typeText(bubble,text,delay=15){
   }
 }
 
-// Source fetchers
-async function fetchDuck(query, log){
-  log.push("DuckDuckGo: fetching...");
-  try{
-    const res=await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1`);
-    const data=await res.json();
-    log.push("DuckDuckGo: success");
-    if(data.AbstractText) return data.AbstractText;
-    else if(data.RelatedTopics && data.RelatedTopics.length>0) return data.RelatedTopics[0].Text.split('\n').slice(0,2).join(' ');
-    return "";
-  }catch(e){ log.push("DuckDuckGo exception: "+e); return ""; }
-}
-
-async function fetchJoke(log){
-  log.push("Joke API fetching...");
-  try{
-    const res=await fetch('https://official-joke-api.appspot.com/random_joke');
-    if(res.ok){ const data=await res.json(); log.push("Joke fetched"); return data.setup+" ... "+data.punchline; }
-    return "";
-  }catch(e){ log.push("Joke exception: "+e); return ""; }
-}
-
-async function fetchWeather(query, log){
-  log.push("Weather fetching...");
-  try{
-    const apiKey="YOUR_OPENWEATHER_KEY"; // Replace with your OpenWeatherMap API key
-    const city = query.match(/in ([a-zA-Z\s]+)/i)?.[1] || "New York";
-    const res=await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&units=metric&appid=${apiKey}`);
-    if(res.ok){ const data=await res.json(); log.push("Weather fetched"); return `Weather in ${data.name}: ${data.weather[0].description}, Temp: ${data.main.temp}°C`; }
-    return "";
-  }catch(e){ log.push("Weather exception: "+e); return ""; }
-}
-
-// Select sources
-function selectSources(msg){
-  const sources=[];
-  const lower=msg.toLowerCase();
-  if(lower.includes("weather")) sources.push("weather");
-  if(lower.includes("joke")) sources.push("joke");
-  sources.push("duck");
-  return sources;
-}
-
-// Send message
 async function sendMessage(){
   const input=document.getElementById('message');
   const msg=input.value.trim();
@@ -106,39 +60,28 @@ async function sendMessage(){
   thinkingBubble.textContent='Thinking...';
   chat.appendChild(thinkingBubble);
 
-  const log=[];
-  let finalText="";
-  const sources=selectSources(msg);
-  const promises=[];
-
-  for(const s of sources){
-    if(s==="duck") promises.push(fetchDuck(msg,log));
-    if(s==="joke") promises.push(fetchJoke(log));
-    if(s==="weather") promises.push(fetchWeather(msg,log));
+  try{
+    const res=await fetch("/api/moonai",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:msg})
+    });
+    const data=await res.json();
+    thinkingBubble.remove();
+    const botBubble=document.createElement('div');
+    botBubble.className='bubble bot';
+    chat.appendChild(botBubble);
+    await typeText(botBubble,data.answer,15);
+    botBubble.onclick=()=>alert(data.log.join("\n"));
+  }catch(e){
+    thinkingBubble.remove();
+    addMessage("Error contacting MoonAI: "+e,'bot');
   }
-
-  const results=await Promise.all(promises);
-
-  results.forEach((res,i)=>{
-    if(!res) return;
-    const s=sources[i];
-    if(s==="duck") finalText+="Info:\n"+res+"\n\n";
-    if(s==="joke") finalText+="Joke:\n"+res+"\n\n";
-    if(s==="weather") finalText+="Weather:\n"+res+"\n\n";
-  });
-
-  if(!finalText) finalText="I could not find relevant online info.";
-
-  thinkingBubble.remove();
-  const botBubble=document.createElement('div');
-  botBubble.className='bubble bot';
-  chat.appendChild(botBubble);
-  await typeText(botBubble,finalText,15);
-  botBubble.onclick=()=>alert(log.join("\n"));
 }
 
-// Enter key
-document.getElementById('message').addEventListener('keypress', e => { if(e.key==='Enter') sendMessage(); });
+document.getElementById('message').addEventListener('keypress', e=>{
+  if(e.key==='Enter') sendMessage();
+});
 </script>
 </body>
 </html>
